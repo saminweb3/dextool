@@ -4,10 +4,10 @@ import requests
 
 app = FastAPI()
 
-# This is your entire website inside a single variable
+# We put the HTML directly in the variable to avoid all file-path errors
 DASHBOARD_HTML = """
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8"><title>EVM Arb Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,10 +21,7 @@ DASHBOARD_HTML = """
     </div>
 
     <div id="dash" class="hidden max-w-4xl mx-auto">
-        <div class="flex justify-between items-center mb-8 bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-             <h1 class="text-2xl font-black text-blue-500 italic">EVM ARB RANKER</h1>
-             <div class="text-right"><p class="text-[10px] text-zinc-500 font-bold uppercase">Admin: samproeth</p></div>
-        </div>
+        <h1 class="text-2xl font-black text-blue-500 italic mb-8">EVM ARB RANKER</h1>
         <div id="results" class="grid grid-cols-1 gap-4"></div>
     </div>
 
@@ -34,29 +31,24 @@ DASHBOARD_HTML = """
                 document.getElementById('login').classList.add('hidden');
                 document.getElementById('dash').classList.remove('hidden');
                 load();
-                setInterval(load, 60000);
-            } else { alert("Wrong login"); }
+                setInterval(load, 30000);
+            } else { alert("Invalid login"); }
         }
         async function load() {
             try {
                 const res = await fetch('/api/arbitrage');
                 const data = await res.json();
                 document.getElementById('results').innerHTML = data.map((item, i) => 
-                    <div class="p-5 bg-zinc-900 rounded-xl border ${i===0?'border-yellow-500':'border-zinc-800'} flex justify-between items-center">
+                    <div class="p-5 bg-zinc-900 rounded-xl border border-zinc-800 flex justify-between items-center">
                         <div>
-                            <div class="px-2 py-0.5 bg-zinc-800 text-[9px] font-bold rounded w-fit mb-2">RANK #${i+1}</div>
-                            <h3 class="text-xl font-bold tracking-tighter">${item.symbol}</h3>
+                            <p class="text-[10px] text-zinc-500 font-bold">RANK #${i+1}</p>
+                            <h3 class="text-xl font-bold text-white">${item.symbol}</h3>
                             <p class="text-[9px] font-mono text-zinc-600 truncate max-w-[150px]">${item.ca}</p>
                         </div>
-                        <div class="flex items-center gap-6">
-                            <div class="text-center">
-                                <p class="text-[8px] text-zinc-500 font-bold uppercase">${item.buy.chain}</p>
-                                <p class="text-emerald-400 font-bold">$${item.buy.price.toFixed(4)}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-blue-400 font-black text-2xl">${item.spread}%</p>
-                                <a href="${item.buy.link}" target="_blank" class="text-[9px] bg-white text-black px-3 py-1 rounded-full font-black uppercase hover:bg-blue-500 transition-all">TRADE</a>
-                            </div>
+                        <div class="text-right">
+                            <p class="text-emerald-400 font-black text-2xl">${item.spread}%</p>
+                            <p class="text-[10px] text-zinc-500 mb-2">${item.buy.chain} ➜ ${item.sell.chain}</p>
+                            <a href="${item.buy.link}" target="_blank" class="bg-white text-black text-[10px] px-3 py-1 rounded font-black uppercase hover:bg-blue-500 hover:text-white transition-all">GO TO POOL</a>
                         </div>
                     </div>
                 ).join('');
@@ -69,10 +61,11 @@ DASHBOARD_HTML = """
 
 @app.get("/")
 async def read_root():
-    # Returns the HTML directly from memory - NO FILES NEEDED
     return HTMLResponse(content=DASHBOARD_HTML)
 
-EVM_CHAINS = ['eth', 'bsc', 'arbitrum', 'polygon_pos', 'base', 'optimism', 'avax']@app.get("/api/arbitrage")
+EVM_CHAINS = ['eth', 'bsc', 'arbitrum', 'polygon_pos', 'base', 'optimism', 'avax']
+
+@app.get("/api/arbitrage")
 async def get_arb():
     all_opps = []
     groups = {}
@@ -85,8 +78,7 @@ async def get_arb():
                 attr = pool['attributes']
                 if float(attr.get('reserve_in_usd', 0)) < 1000: continue
                 symbol = attr['symbol'].split(' / ')[0]
-                if symbol not in groups: groups[symbol] = []
-                groups[symbol].append({
+                if symbol not in groups: groups[symbol] = []groups[symbol].append({
                     "price": float(attr['token_price_usd']),
                     "dex": pool['relationships']['dex']['data']['id'].upper(),
                     "chain": chain.upper(),
