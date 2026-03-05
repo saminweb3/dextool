@@ -4,7 +4,7 @@ import requests
 
 app = FastAPI()
 
-# Paste your FULL index.html content between the triple quotes below
+# This is your entire website inside a single variable
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="en">
@@ -15,8 +15,8 @@ DASHBOARD_HTML = """
 <body class="bg-black text-white p-6 font-sans">
     <div id="login" class="max-w-sm mx-auto mt-20 p-8 bg-zinc-900 rounded-xl border border-zinc-800 text-center">
         <h2 class="text-xl font-bold mb-4">ADMIN ACCESS</h2>
-        <input id="u" type="text" placeholder="User" class="w-full bg-black p-2 mb-2 border border-zinc-700 outline-none">
-        <input id="p" type="password" placeholder="Pass" class="w-full bg-black p-2 mb-4 border border-zinc-700 outline-none">
+        <input id="u" type="text" placeholder="User" class="w-full bg-black p-2 mb-2 border border-zinc-700 outline-none rounded">
+        <input id="p" type="password" placeholder="Pass" class="w-full bg-black p-2 mb-4 border border-zinc-700 outline-none rounded">
         <button onclick="auth()" class="w-full bg-blue-600 py-2 rounded font-bold hover:bg-blue-500 transition-all">UNLOCK</button>
     </div>
 
@@ -38,27 +38,29 @@ DASHBOARD_HTML = """
             } else { alert("Wrong login"); }
         }
         async function load() {
-            const res = await fetch('/api/arbitrage');
-            const data = await res.json();
-            document.getElementById('results').innerHTML = data.map((item, i) => 
-                <div class="p-5 bg-zinc-900 rounded-xl border ${i===0?'border-yellow-500':'border-zinc-800'} flex justify-between items-center">
-                    <div>
-                        <div class="px-2 py-0.5 bg-zinc-800 text-[9px] font-bold rounded w-fit mb-2">RANK #${i+1}</div>
-                        <h3 class="text-xl font-bold tracking-tighter">${item.symbol}</h3>
-                        <p class="text-[9px] font-mono text-zinc-600 truncate max-w-[150px]">${item.ca}</p>
-                    </div>
-                    <div class="flex items-center gap-6">
-                        <div class="text-center">
-                            <p class="text-[8px] text-zinc-500 font-bold">${item.buy.chain}</p>
-                            <p class="text-emerald-400 font-bold">$${item.buy.price.toFixed(4)}</p>
+            try {
+                const res = await fetch('/api/arbitrage');
+                const data = await res.json();
+                document.getElementById('results').innerHTML = data.map((item, i) => 
+                    <div class="p-5 bg-zinc-900 rounded-xl border ${i===0?'border-yellow-500':'border-zinc-800'} flex justify-between items-center">
+                        <div>
+                            <div class="px-2 py-0.5 bg-zinc-800 text-[9px] font-bold rounded w-fit mb-2">RANK #${i+1}</div>
+                            <h3 class="text-xl font-bold tracking-tighter">${item.symbol}</h3>
+                            <p class="text-[9px] font-mono text-zinc-600 truncate max-w-[150px]">${item.ca}</p>
                         </div>
-                        <div class="text-right">
-                            <p class="text-blue-400 font-black text-2xl">${item.spread}%</p>
-                            <a href="${item.buy.link}" target="_blank" class="text-[9px] bg-white text-black px-3 py-1 rounded-full font-black uppercase hover:bg-blue-500 hover:text-white transition-all">GO TO POOL</a>
+                        <div class="flex items-center gap-6">
+                            <div class="text-center">
+                                <p class="text-[8px] text-zinc-500 font-bold uppercase">${item.buy.chain}</p>
+                                <p class="text-emerald-400 font-bold">$${item.buy.price.toFixed(4)}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-blue-400 font-black text-2xl">${item.spread}%</p>
+                                <a href="${item.buy.link}" target="_blank" class="text-[9px] bg-white text-black px-3 py-1 rounded-full font-black uppercase hover:bg-blue-500 transition-all">TRADE</a>
+                            </div>
                         </div>
                     </div>
-                </div>
-            ).join('');
+                ).join('');
+            } catch (e) { console.error("API Error", e); }
         }
     </script>
 </body>
@@ -66,18 +68,17 @@ DASHBOARD_HTML = """
 """
 
 @app.get("/")
-async def read_index():
-    # We return the HTML directly. No more File Not Found errors!
+async def read_root():
+    # Returns the HTML directly from memory - NO FILES NEEDED
     return HTMLResponse(content=DASHBOARD_HTML)
 
-EVM_CHAINS = ['eth', 'bsc', 'arbitrum', 'polygon_pos', 'base', 'optimism', 'avax']
-
-@app.get("/api/arbitrage")
+EVM_CHAINS = ['eth', 'bsc', 'arbitrum', 'polygon_pos', 'base', 'optimism', 'avax']@app.get("/api/arbitrage")
 async def get_arb():
     all_opps = []
     groups = {}
     for chain in EVM_CHAINS:
-        try:r = requests.get(f"https://api.geckoterminal.com/api/v2/networks/{chain}/trending_pools", 
+        try:
+            r = requests.get(f"https://api.geckoterminal.com/api/v2/networks/{chain}/trending_pools", 
                              headers={'Accept': 'application/json;version=20230203'}, timeout=5)
             data = r.json().get('data', [])
             for pool in data:
@@ -93,6 +94,7 @@ async def get_arb():
                     "link": f"https://www.geckoterminal.com/{chain}/pools/{attr['address']}"
                 })
         except: continue
+    
     for sym, pools in groups.items():
         if len(pools) < 2: continue
         pools.sort(key=lambda x: x['price'])
@@ -100,4 +102,5 @@ async def get_arb():
         spread = ((high['price'] - low['price']) / low['price']) * 100
         if spread > 0.1:
             all_opps.append({"symbol": sym, "spread": round(spread, 2), "ca": low['ca'], "buy": low, "sell": high})
+            
     return sorted(all_opps, key=lambda x: x['spread'], reverse=True)
