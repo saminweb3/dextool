@@ -6,7 +6,7 @@ import os
 
 app = FastAPI()
 
-# Enable CORS for frontend-backend communication
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,48 +16,26 @@ app.add_middleware(
 
 @app.get("/")
 async def read_index():
-    """
-    Search for index.html in all possible Vercel deployment paths.
-    This prevents the infinite 'Dashboard Loading' loop.
-    """
-    # 1. Define all possible locations for the public folder
-    paths_to_try = [
+    # Attempt to find index.html using relative paths Vercel prefers
+    # This avoids the 'Internal Server Error' caused by absolute path failures
+    possible_paths = [
         os.path.join(os.getcwd(), "public", "index.html"),
-        os.path.join(os.path.dirname(os.path.dirname(file)), "public", "index.html"),
         os.path.join(os.path.dirname(file), "..", "public", "index.html"),
         "/var/task/public/index.html"
     ]
     
-    # 2. Try to find and return the file
-    for path in paths_to_try:
+    for path in possible_paths:
         if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    return HTMLResponse(content=f.read())
-            except Exception as e:
-                return HTMLResponse(content=f"<h1>Read Error</h1><p>{str(e)}</p>")
-
-    # 3. If no file is found, show a debug map instead of looping
-    debug_info = f"""
-    <h1>File Not Found</h1>
-    <p>The server could not find <b>public/index.html</b>.</p>
-    <hr>
-    <b>Paths checked:</b><br>
-    <ul style="font-family:monospace;">
-        {"".join([f"<li>{p}</li>" for p in paths_to_try])}
-    </ul>
-    <b>Current Directory:</b> {os.getcwd()}<br>
-    <b>Directory Contents:</b> {os.listdir(os.getcwd())}
-    """
-    return HTMLResponse(content=debug_info)
+            with open(path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+    
+    # Debug message if file is still not found
+    return HTMLResponse(f"<h1>Configuration Error</h1><p>Could not find index.html. Current Dir: {os.getcwd()}</p>")
 
 EVM_CHAINS = ['eth', 'bsc', 'arbitrum', 'polygon_pos', 'base', 'optimism', 'avax']
 
 @app.get("/api/arbitrage")
 async def get_arb():
-    """
-    Fetches trending pools across EVM chains and calculates spreads.
-    """
     all_opps = []
     groups = {}
     
@@ -66,21 +44,16 @@ async def get_arb():
             r = requests.get(
                 f"https://api.geckoterminal.com/api/v2/networks/{chain}/trending_pools", 
                 headers={'Accept': 'application/json;version=20230203'}, 
-                timeout=8
+                timeout=5
             )
             if r.status_code != 200: continue
-                
             data = r.json().get('data', [])
             for pool in data:
                 attr = pool.get('attributes', {})
-                liq = float(attr.get('reserve_in_usd', 0))
-                
-                # Filter: $1,000 Minimum Liquidity
-                if liq < 1000: continue
+                if float(attr.get('reserve_in_usd', 0)) < 1000: continue
                 
                 symbol = attr.get('symbol', '').split(' / ')[0]
                 if not symbol: continue
-                    
                 if symbol not in groups: groups[symbol] = []
                 
                 groups[symbol].append({
@@ -96,17 +69,12 @@ async def get_arb():
         if len(pools) < 2: continue
         pools.sort(key=lambda x: x['price'])
         low, high = pools[0], pools[-1]
-        
-        if low['price'] <= 0: continue
         spread = ((high['price'] - low['price']) / low['price']) * 100
         
         if spread > 0.1:
             all_opps.append({
-                "symbol": sym, 
-                "spread": round(spread, 2), 
-                "ca": low['ca'],
-                "buy": low, 
-                "sell": high
+                "symbol": sym, "spread": round(spread, 2), "ca": low['ca'],
+                "buy": low, "sell": high
             })
 
     return sorted(all_opps, key=lambda x: x['spread'], reverse=True)
