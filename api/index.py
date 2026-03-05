@@ -1,84 +1,100 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import requests
+import os
 
 app = FastAPI()
 
-# This variable holds your entire website UI and JavaScript
+# Integrated UI and Logic to bypass all file-path errors
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EVM Arb Pro</title>
+    <title>EVM Arb Ranker Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-black text-white p-6 font-sans">
-    <div id="login" class="max-w-sm mx-auto mt-20 p-8 bg-zinc-900 rounded-xl border border-zinc-800 text-center shadow-2xl">
+<body class="bg-black text-white p-4 md:p-8 font-sans">
+    <div id="login" class="max-w-sm mx-auto mt-20 p-8 bg-zinc-900 rounded-2xl border border-zinc-800 text-center shadow-2xl">
         <h2 class="text-xl font-bold mb-6 tracking-tighter uppercase">Admin Access</h2>
-        <input id="u" type="text" placeholder="Username" class="w-full bg-black p-3 mb-3 border border-zinc-700 outline-none rounded-lg focus:border-blue-500 transition-all">
-        <input id="p" type="password" placeholder="Password" class="w-full bg-black p-3 mb-6 border border-zinc-700 outline-none rounded-lg focus:border-blue-500 transition-all">
+        <input id="u" type="text" placeholder="Username" class="w-full bg-black p-3 mb-3 border border-zinc-700 rounded-lg outline-none focus:border-blue-500 transition-all">
+        <input id="p" type="password" placeholder="Password" class="w-full bg-black p-3 mb-6 border border-zinc-700 rounded-lg outline-none focus:border-blue-500 transition-all">
         <button id="unlock-btn" onclick="auth()" class="w-full bg-blue-600 py-3 rounded-lg font-black hover:bg-blue-500 transition-all uppercase text-xs tracking-widest">Unlock</button>
     </div>
 
-    <div id="dash" class="hidden max-w-4xl mx-auto">
-        <div class="flex justify-between items-center mb-8 bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-             <h1 class="text-2xl font-black text-blue-500 italic">EVM ARB RANKER</h1>
-             <div class="text-right"><p class="text-[10px] text-zinc-500 font-bold uppercase">Session: samproeth</p></div>
+    <div id="dash" class="hidden max-w-5xl mx-auto">
+        <div class="flex justify-between items-center mb-10 bg-zinc-900 p-6 rounded-3xl border border-zinc-800">
+             <div>
+                <h1 class="text-2xl font-black text-blue-500 italic tracking-tighter uppercase">EVM ARB RANKER</h1>
+                <p class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Live DEX Spread Scanner</p>
+             </div>
+             <div class="text-right">
+                <p class="text-[10px] text-zinc-400 font-mono uppercase">Session: samproeth</p>
+                <button onclick="load()" class="text-[9px] bg-zinc-800 px-3 py-1 rounded mt-1 hover:bg-zinc-700">Refresh Now</button>
+             </div>
         </div>
+        
         <div id="results" class="grid grid-cols-1 gap-4">
-            <div class="text-center p-10 text-zinc-600 animate-pulse font-mono text-xs uppercase italic">
-                Initializing Scanner...
+            <div class="text-center p-20 text-zinc-600 animate-pulse font-mono text-xs uppercase italic">
+                Scanning EVM Chains... Please Wait
             </div>
         </div>
     </div>
 
     <script>
         function auth() {
-            // .trim() removes any accidental spaces before or after the text
             const user = document.getElementById('u').value.trim();
             const pass = document.getElementById('p').value.trim();
-            const btn = document.getElementById('unlock-btn');
             
-            // Credentials you requested: samproeth / samproeth
             if(user === 'samproeth' && pass === 'samproeth') {
-                btn.innerHTML = "LOADING...";
                 document.getElementById('login').style.display = 'none';
                 document.getElementById('dash').classList.remove('hidden');
                 load();
-                setInterval(load, 45000); // Auto-update data every 45 seconds
+                setInterval(load, 30000); // Auto-refresh every 30 seconds
             } else { 
-                alert("Access Denied: Please check your credentials."); 
+                alert("Invalid Credentials."); 
             }
         }
 
         async function load() {
+            const container = document.getElementById('results');
             try {
                 const res = await fetch('/api/arbitrage');
                 const data = await res.json();
                 
                 if(!data || data.length === 0) {
-                    document.getElementById('results').innerHTML = '<div class="text-center p-10 border border-zinc-800 rounded-xl text-zinc-500 text-xs uppercase">No Spreads Found - Scanning Chains...</div>';
+                    container.innerHTML = '<div class="text-center p-10 border border-zinc-800 rounded-2xl text-zinc-500 text-[10px] uppercase tracking-widest">Scanning 5 Chains... No Spreads > 0.01% Found Yet</div>';
                     return;
                 }
 
-                document.getElementById('results').innerHTML = data.map((item, i) => `
-                    <div class="p-5 bg-zinc-900 rounded-xl border border-zinc-800 flex justify-between items-center hover:border-zinc-600 transition-all">
-                        <div>
-                            <p class="text-[10px] text-zinc-500 font-bold mb-1 uppercase tracking-tighter">Rank #${i+1}</p>
-                            <h3 class="text-xl font-black tracking-tighter">${item.symbol}</h3>
-                            <p class="text-[9px] font-mono text-zinc-600 truncate max-w-[150px] uppercase">CA: ${item.ca}</p></div>
-                        <div class="text-right">
+                container.innerHTML = data.map((item, i) => `
+                    <div class="p-6 bg-zinc-900 rounded-2xl border ${i===0?'border-yellow-500/50 shadow-lg':'border-zinc-800'} flex flex-col md:flex-row justify-between items-center gap-6 hover:bg-zinc-800/50 transition-all">
+                        <div class="w-full md:w-auto">
+                            <span class="px-2 py-0.5 ${i===0?'bg-yellow-500 text-black':'bg-zinc-800 text-zinc-400'} text-[10px] font-black rounded uppercase">RANK #${i+1}</span><h3 class="text-2xl font-bold tracking-tighter mt-1">${item.symbol}</h3>
+                            <p class="text-[9px] font-mono text-zinc-600 truncate max-w-[200px] mt-1 uppercase">CA: ${item.ca}</p>
+                        </div>
+
+                        <div class="flex-1 flex justify-around items-center w-full px-4 text-center">
+                            <div>
+                                <p class="text-[9px] text-zinc-500 font-bold uppercase mb-1">${item.buy.chain}</p>
+                                <p class="text-emerald-400 font-mono font-bold">$${item.buy.price.toFixed(6)}</p>
+                            </div>
+                            <div class="text-zinc-700">➜</div>
+                            <div>
+                                <p class="text-[9px] text-zinc-500 font-bold uppercase mb-1">${item.sell.chain}</p>
+                                <p class="text-blue-400 font-mono font-bold">$${item.sell.price.toFixed(6)}</p>
+                            </div>
+                        </div>
+
+                        <div class="text-right w-full md:w-auto">
                             <p class="text-emerald-400 font-black text-3xl tabular-nums tracking-tighter">${item.spread}%</p>
-                            <p class="text-[9px] text-zinc-500 font-bold uppercase mb-2">${item.buy.chain} ➜ ${item.sell.chain}</p>
-                            <a href="${item.buy.link}" target="_blank" class="bg-white text-black text-[10px] px-4 py-1.5 rounded-full font-black uppercase hover:bg-blue-600 hover:text-white transition-all shadow-lg">Trade</a>
+                            <a href="${item.buy.link}" target="_blank" class="inline-block mt-2 bg-white text-black px-6 py-2 rounded-full font-black text-[10px] uppercase hover:bg-blue-500 hover:text-white transition-all">Trade Now</a>
                         </div>
                     </div>
                 `).join('');
             } catch (e) { 
-                console.error("API Error:", e);
-                document.getElementById('results').innerHTML = '<div class="text-red-500 p-4 text-center font-mono text-xs uppercase">Server Connection Error</div>';
+                container.innerHTML = '<div class="text-red-500 p-4 text-center font-mono text-xs uppercase">API Timeout: Retrying...</div>';
             }
         }
     </script>
@@ -88,32 +104,31 @@ DASHBOARD_HTML = """
 
 @app.get("/")
 async def read_root():
-    # Returns the HTML UI directly from the Python variable
     return HTMLResponse(content=DASHBOARD_HTML)
 
-# Supported EVM Chains for Scanning
-EVM_CHAINS = ['eth', 'bsc', 'arbitrum', 'polygon_pos', 'base', 'optimism', 'avax']
+# Optimized chain list to fit within Vercel's 10-second limit
+CHAINS = ['eth', 'bsc', 'arbitrum', 'base', 'polygon_pos']
 
 @app.get("/api/arbitrage")
 async def get_arb():
     all_opps = []
     groups = {}
     
-    for chain in EVM_CHAINS:
+    for chain in CHAINS:
         try:
-            # Fetch data from GeckoTerminal
+            # Short timeout to ensure the function returns before Vercel kills it
             r = requests.get(
                 f"https://api.geckoterminal.com/api/v2/networks/{chain}/trending_pools", 
                 headers={'Accept': 'application/json;version=20230203'}, 
-                timeout=5
+                timeout=2.5
             )
             if r.status_code != 200: continue
             
             data = r.json().get('data', [])
             for pool in data:
                 attr = pool.get('attributes', {})
-                # Minimum Liquidity Check ($1,000)
-                if float(attr.get('reserve_in_usd', 0)) < 1000: continue
+                # Lowered liquidity filter ($500) to find more results
+                if float(attr.get('reserve_in_usd', 0)) < 500: continue
                 
                 symbol = attr.get('symbol', '').split(' / ')[0]
                 if not symbol: continue
@@ -128,7 +143,6 @@ async def get_arb():
         except: 
             continue
     
-    # Calculate spreads between different DEXs/Chains
     for sym, pools in groups.items():
         if len(pools) < 2: continue
         pools.sort(key=lambda x: x['price'])
@@ -137,14 +151,10 @@ async def get_arb():
         if low['price'] <= 0: continue
         spread = ((high['price'] - low['price']) / low['price']) * 100
         
-        # Only show spreads higher than 0.1%
-        if spread > 0.1:
+        # Show all spreads above 0.01% for real-time visibility
+        if spread > 0.01:
             all_opps.append({
-                "symbol": sym, 
-                "spread": round(spread, 2), 
-                "ca": low['ca'], 
-                "buy": low, 
-                "sell": high
+                "symbol": sym, "spread": round(spread, 2), "ca": low['ca'], "buy": low, "sell": high
             })
             
     return sorted(all_opps, key=lambda x: x['spread'], reverse=True)
