@@ -5,25 +5,39 @@ import os
 
 app = FastAPI()
 
-@app.get("/")
-async def read_index():
-    # This is the most reliable way to find your file on Vercel
-    # It looks exactly for the 'public' folder in your root
-    current_dir = os.path.dirname(os.path.abspath(file))
-    path = os.path.join(current_dir, "..", "public", "index.html")
+def find_html():
+    """Search for index.html in common Vercel locations."""
+    # List of possible locations for public/index.html
+    possible_locations = [
+        os.path.join(os.getcwd(), "public", "index.html"),
+        os.path.join(os.path.dirname(os.path.dirname(file)), "public", "index.html"),
+        os.path.join(os.path.dirname(file), "..", "public", "index.html"),
+        "/var/task/public/index.html"
+    ]
     
-    try:
+    for path in possible_locations:
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
-                return HTMLResponse(content=f.read())
-        else:
-            # If the file is missing, we show exactly where the server looked
-            return HTMLResponse(f"<h1>File Not Found</h1><p>Looked in: {path}</p>")
-    except Exception as e:
-        return HTMLResponse(f"<h1>Server Error</h1><p>{str(e)}</p>")
+                return f.read()
+    return None
+
+@app.get("/")
+async def read_index():
+    content = find_html()
+    if content:
+        return HTMLResponse(content=content)
+    
+    # If the file is NOT found, we show a debug screen instead of crashing
+    return HTMLResponse(f"""
+        <body style="background:black;color:white;font-family:sans-serif;padding:50px;">
+            <h1 style="color:#ef4444;">File Connection Error</h1>
+            <p>The Python server is alive, but it cannot find <b>public/index.html</b>.</p>
+            <p><b>Current Folder:</b> {os.getcwd()}</p>
+            <p><b>Folders Found:</b> {os.listdir(os.getcwd())}</p>
+        </body>
+    """)
 
 @app.get("/api/arbitrage")
 async def get_arb():
-    # Keep your existing scanner logic here
-    # (Fetching from GeckoTerminal and ranking by spread)
-    return {"status": "logic_active"}
+    # Keep your scanner logic here
+    return [{"symbol": "BTC/ETH", "spread": 1.2, "status": "active"}]
