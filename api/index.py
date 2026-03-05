@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import requests
-import time
+import os
 
 app = FastAPI()
 
@@ -12,10 +13,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# THIS FIXES THE "NOT FOUND" ERROR
+# It tells Python to show your HTML file at the main URL
+@app.get("/")
+async def read_index():
+    path = os.path.join(os.path.dirname(file), "..", "public", "index.html")
+    return FileResponse(path)
+
 EVM_CHAINS = ['eth', 'bsc', 'arbitrum', 'polygon_pos', 'base', 'optimism', 'avax']
 
 @app.get("/api/arbitrage")
-def get_arb():
+async def get_arb():
     all_opps = []
     groups = {}
     
